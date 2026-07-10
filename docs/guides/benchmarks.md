@@ -5,6 +5,8 @@ Use this guide when you want to run the benchmark-driven modes: `generate`, `eva
 ## Core idea
 
 Benchmark workflows resolve the dataset, detector, and ReID defaults from self-contained YAMLs under `boxmot/configs/benchmarks/`. The first run generates detections and embeddings, and later runs reuse that cache.
+Downloaded MOT-style benchmark datasets are cached under `boxmot/datasets/mot/`.
+ReID datasets use the sibling cache root `boxmot/datasets/reid/`.
 
 ```bash
 boxmot generate --benchmark mot17 --split ablation
@@ -60,7 +62,7 @@ Trackers that need image data during replay, such as camera-motion-compensation 
 Benchmark workflows write reusable detection and embedding caches under the project run directory, plus tracker outputs and evaluation artifacts for the selected mode.
 
 - `generate` writes the cache only.
-- `eval` writes tracker outputs and TrackEval summaries.
+- `eval` writes tracker outputs and MOT metric summaries.
 - `tune` writes trial outputs and the best parameter set.
 - `research` writes benchmark summaries for each evaluated code proposal.
 

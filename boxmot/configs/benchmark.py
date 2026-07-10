@@ -299,10 +299,82 @@ def _normalize_dataset_download(cfg: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _trackeval_adapter_for_box_type(box_type: str) -> str:
-    """Map the configured box type to the TrackEval adapter used at runtime."""
+def _metric_backend_for_box_type(box_type: str) -> str:
+    """Map the configured box type to the MOT metric backend used at runtime."""
     normalized = str(box_type or "aabb").lower()
     return "mot_challenge_obb" if normalized == "obb" else "mot_challenge"
+
+
+def _normalize_class_bridge(
+    evaluation_cfg: dict[str, Any],
+    default_classes: dict,
+) -> list[dict[str, Any]]:
+    """Normalize benchmark dataset classes to detector classes.
+
+    ``dataset_id`` is the annotation/evaluation class id. ``detector_id`` is
+    the class id emitted by the detector and preserved by trackers.
+    """
+    raw_classes = evaluation_cfg.get("classes") if isinstance(evaluation_cfg, dict) else None
+    if not raw_classes:
+        return []
+
+    bridge: list[dict[str, Any]] = []
+    if isinstance(raw_classes, dict):
+        iterable = []
+        for class_id, entry in raw_classes.items():
+            if isinstance(entry, dict):
+                keyed_entry = {"dataset_id": class_id, **entry}
+            else:
+                keyed_entry = {"dataset_id": class_id, "name": entry}
+            iterable.append(keyed_entry)
+    else:
+        iterable = raw_classes
+
+    for entry in iterable:
+        if not isinstance(entry, dict):
+            continue
+        dataset_id = entry.get("dataset_id")
+        name = entry.get("name")
+        if dataset_id is None:
+            continue
+        if name is None:
+            name = default_classes.get(int(dataset_id), f"class_{dataset_id}")
+
+        normalized = {
+            "name": str(name),
+            "dataset_id": int(dataset_id),
+        }
+        if entry.get("detector_id") is not None:
+            normalized["detector_id"] = int(entry["detector_id"])
+        if entry.get("detector_name") is not None:
+            normalized["detector_name"] = str(entry["detector_name"])
+        bridge.append(normalized)
+
+    return sorted(bridge, key=lambda item: int(item["dataset_id"]))
+
+
+def _class_bridge_eval_names(class_bridge: list[dict[str, Any]], fallback: dict) -> dict:
+    if not class_bridge:
+        return fallback
+    return {
+        int(entry["dataset_id"]): str(entry["name"])
+        for entry in class_bridge
+    }
+
+
+def _class_bridge_name_mapping(class_bridge: list[dict[str, Any]], fallback: dict) -> dict:
+    if not class_bridge:
+        return fallback
+    return {
+        str(entry["name"]): str(entry.get("detector_name") or entry["name"])
+        for entry in class_bridge
+    }
+
+
+def _class_bridge_ignore_ids(evaluation_cfg: dict[str, Any], distractors: dict) -> list[int]:
+    if isinstance(evaluation_cfg, dict) and "ignore_dataset_ids" in evaluation_cfg:
+        return sorted(set(int(value) for value in evaluation_cfg.get("ignore_dataset_ids") or []))
+    return sorted(int(class_id) for class_id in distractors)
 
 
 def _build_filtered_split(
@@ -394,7 +466,7 @@ def _normalize_benchmark_cfg(raw_cfg: dict[str, Any], cfg_path: Path) -> dict[st
         "layout", "box_type", "detector", "reid", "names", "classes",
         "distractors", "class_map", "download", "dataset_config",
         "detector_config", "reid_config", "seq_pattern",
-        "trackeval", "storage", "evaluation", "benchmark", "defaults",
+        "metric_backend", "storage", "evaluation", "benchmark", "defaults",
         "no_gt_splits",
     }
     for key, value in cfg.items():
@@ -405,11 +477,16 @@ def _normalize_benchmark_cfg(raw_cfg: dict[str, Any], cfg_path: Path) -> dict[st
 
     box_type = cfg.get("box_type") or "aabb"
     layout = cfg.get("layout") or "mot"
-    trackeval_name = _trackeval_adapter_for_box_type(str(box_type).lower())
+    metric_backend = _metric_backend_for_box_type(str(box_type).lower())
 
     names = dict(cfg.get("classes") or cfg.get("names") or {})
     distractors = dict(cfg.get("distractors") or {})
     class_map = dict(cfg.get("class_map") or {})
+    evaluation_cfg = cfg.get("evaluation") if isinstance(cfg.get("evaluation"), dict) else {}
+    class_bridge = _normalize_class_bridge(evaluation_cfg, names)
+    eval_names = _class_bridge_eval_names(class_bridge, names)
+    class_map = _class_bridge_name_mapping(class_bridge, class_map)
+    ignore_dataset_ids = _class_bridge_ignore_ids(evaluation_cfg, distractors)
 
     download_cfg = _normalize_dataset_download(cfg)
 
@@ -428,7 +505,7 @@ def _normalize_benchmark_cfg(raw_cfg: dict[str, Any], cfg_path: Path) -> dict[st
         "splits": dict(split_paths),
         "layout": str(layout),
         "box_type": str(box_type).lower(),
-        "trackeval": str(trackeval_name),
+        "metric_backend": str(metric_backend),
         "names": names,
         "distractors": distractors,
         "class_map": class_map,
@@ -447,11 +524,13 @@ def _normalize_benchmark_cfg(raw_cfg: dict[str, Any], cfg_path: Path) -> dict[st
     normalized["evaluation"] = {
         "box_type": normalized["box_type"],
         "layout": normalized["layout"],
-        "tracker_eval": normalized["trackeval"],
+        "metric_eval": normalized["metric_backend"],
         "classes": {
-            "eval": names,
+            "eval": eval_names,
             "distractor": distractors,
             "mapping": class_map,
+            "bridge": class_bridge,
+            "ignore_dataset_ids": ignore_dataset_ids,
         },
     }
     normalized["benchmark"] = {
@@ -459,10 +538,12 @@ def _normalize_benchmark_cfg(raw_cfg: dict[str, Any], cfg_path: Path) -> dict[st
         "split": str(split_paths.get(split_name) or split_name),
         "box_type": normalized["box_type"],
         "layout": normalized["layout"],
-        "tracker_eval": normalized["trackeval"],
-        "eval_classes": names,
+        "metric_eval": normalized["metric_backend"],
+        "eval_classes": eval_names,
         "distractor_classes": distractors,
         "class_mapping": class_map,
+        "class_bridge": class_bridge,
+        "ignore_dataset_ids": ignore_dataset_ids,
     }
     return normalized
 
@@ -520,6 +601,9 @@ def _merge_benchmark_bundle_cfg(
     if seq_pattern_ref:
         payload["seq_pattern"] = str(seq_pattern_ref)
 
+    if isinstance(cfg.get("evaluation"), dict):
+        payload["evaluation"] = cfg["evaluation"]
+
     detector_ref = _component_ref_name(cfg.get("detector")) or dataset_cfg.get("detector_config")
     reid_ref = _component_ref_name(cfg.get("reid")) or dataset_cfg.get("reid_config")
     if detector_ref:
@@ -566,7 +650,10 @@ def load_dataset_cfg(name: str | Path) -> dict[str, Any]:
     dataset_cfg = raw_cfg.get("dataset")
     if not isinstance(dataset_cfg, dict):
         raise ValueError(f"Benchmark config '{cfg_path}' must define an inline 'dataset' mapping.")
-    normalized_dataset = _normalize_benchmark_cfg(dataset_cfg, cfg_path)
+    dataset_payload = dict(dataset_cfg)
+    if isinstance(raw_cfg.get("evaluation"), dict):
+        dataset_payload["evaluation"] = raw_cfg["evaluation"]
+    normalized_dataset = _normalize_benchmark_cfg(dataset_payload, cfg_path)
     return _merge_benchmark_bundle_cfg(raw_cfg, normalized_dataset, cfg_path)
 
 
@@ -577,7 +664,10 @@ def load_benchmark_only_cfg(name: str | Path) -> dict[str, Any]:
     dataset_ref = raw_cfg.get("dataset")
     if not isinstance(dataset_ref, dict):
         raise ValueError(f"Benchmark config '{cfg_path}' must define an inline 'dataset' mapping.")
-    dataset_cfg = _normalize_benchmark_cfg(dataset_ref, cfg_path)
+    dataset_payload = dict(dataset_ref)
+    if isinstance(raw_cfg.get("evaluation"), dict):
+        dataset_payload["evaluation"] = raw_cfg["evaluation"]
+    dataset_cfg = _normalize_benchmark_cfg(dataset_payload, cfg_path)
     return _merge_benchmark_bundle_cfg(raw_cfg, dataset_cfg, cfg_path)
 
 

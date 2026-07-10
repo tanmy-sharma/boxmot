@@ -64,13 +64,19 @@ def _flatten_training_recipe_values(recipe_values: Mapping[str, Any]) -> dict[st
         "pretrained": ("run", "pretrained"),
         "dataset": ("data", "dataset"),
         "data_dir": ("data", "data_dir"),
+        "data_specs": ("data", "data_specs"),
         "imgsz": ("data", "img_size"),
         "preprocess": ("data", "preprocess"),
         "batch_size": ("data", "batch_size"),
         "p_ids": ("data", "sampler", "p"),
         "k_instances": ("data", "sampler", "k"),
+        "source_balance": ("data", "sampler", "source_balance"),
         "num_workers": ("data", "num_workers"),
         "feature_fusion": ("model", "feature_fusion"),
+        "post_fusion_mixer": ("model", "post_fusion_mixer", "mode"),
+        "post_fusion_mixer_reduction": ("model", "post_fusion_mixer", "reduction"),
+        "post_fusion_mixer_kernel": ("model", "post_fusion_mixer", "kernel"),
+        "post_fusion_mixer_gamma_init": ("model", "post_fusion_mixer", "gamma_init"),
         "feat_dim": ("model", "feat_dim"),
         "neck_dim": ("model", "neck_dim"),
         "drop_path_rate": ("model", "regularization", "drop_path_rate"),
@@ -86,9 +92,12 @@ def _flatten_training_recipe_values(recipe_values: Mapping[str, Any]) -> dict[st
         "head_type": ("model", "head", "head_type"),
         "part_pooling": ("model", "head", "part_pooling"),
         "num_part_tokens": ("model", "head", "num_part_tokens"),
+        "evidence_num_roles": ("model", "head", "evidence_num_roles"),
         "decouple_patterns": ("model", "head", "decouple_patterns"),
         "pattern_adapter_dim": ("model", "head", "pattern_adapter_dim"),
         "stripe_visibility": ("model", "head", "stripe_visibility"),
+        "drop_global_aux": ("model", "head", "drop_global_aux"),
+        "drop_global_aux_ratio": ("model", "head", "drop_global_aux_ratio"),
         "head_warmup_epochs": ("model", "head", "warmup_epochs"),
         "head_warmup_lr_mult": ("model", "head", "warmup_lr_mult"),
         "metric_feature": ("model", "feature_selection", "metric_feature"),
@@ -96,6 +105,13 @@ def _flatten_training_recipe_values(recipe_values: Mapping[str, Any]) -> dict[st
         "branch_aware_metric": ("model", "branch", "aware_metric"),
         "branch_metric_part_weight": ("model", "branch", "metric_part_weight"),
         "branch_loss_agg": ("model", "branch", "loss_agg"),
+        "evidence_alignment_loss_weight": ("model", "evidence", "alignment_loss_weight"),
+        "evidence_alignment_margin": ("model", "evidence", "alignment_margin"),
+        "evidence_sinkhorn_iters": ("model", "evidence", "sinkhorn_iters"),
+        "evidence_sinkhorn_temperature": ("model", "evidence", "sinkhorn_temperature"),
+        "evidence_rerank_topk": ("model", "evidence", "rerank_topk"),
+        "evidence_null_loss_weight": ("model", "evidence", "null_loss_weight"),
+        "evidence_diversity_loss_weight": ("model", "evidence", "diversity_loss_weight"),
         "epochs": ("optimization", "epochs"),
         "lr": ("optimization", "lr"),
         "weight_decay": ("optimization", "weight_decay"),
@@ -103,6 +119,11 @@ def _flatten_training_recipe_values(recipe_values: Mapping[str, Any]) -> dict[st
         "warmup_epochs": ("optimization", "scheduler", "warmup_epochs"),
         "vit_lr_profile": ("optimization", "vit_lr_profile"),
         "backbone_freeze_epochs": ("optimization", "backbone_freeze_epochs"),
+        "gradual_unfreeze": ("optimization", "gradual_unfreeze", "enabled"),
+        "gradual_unfreeze_head_epochs": ("optimization", "gradual_unfreeze", "head_epochs"),
+        "gradual_unfreeze_stage_epochs": ("optimization", "gradual_unfreeze", "stage_epochs"),
+        "gradual_unfreeze_backbone_lr_mult": ("optimization", "gradual_unfreeze", "backbone_lr_mult"),
+        "gradual_unfreeze_backbone_lr_epochs": ("optimization", "gradual_unfreeze", "backbone_lr_epochs"),
         "ema_decay": ("optimization", "ema_decay"),
         "loss": ("losses", "loss_type"),
         "classifier_loss": ("losses", "classifier_loss"),
@@ -112,6 +133,10 @@ def _flatten_training_recipe_values(recipe_values: Mapping[str, Any]) -> dict[st
         "id_loss_weight": ("losses", "weights", "id_loss_weight"),
         "metric_loss_weight": ("losses", "weights", "metric_loss_weight"),
         "center_loss_weight": ("losses", "weights", "center_loss_weight"),
+        "early_id_loss_weight": ("losses", "schedules", "early_id_loss", "weight"),
+        "early_id_loss_epochs": ("losses", "schedules", "early_id_loss", "epochs"),
+        "center_loss_ramp_start_epoch": ("losses", "schedules", "center_loss_ramp", "start_epoch"),
+        "center_loss_ramp_end_epoch": ("losses", "schedules", "center_loss_ramp", "end_epoch"),
         "aux_ce_weight": ("losses", "weights", "aux_ce_weight"),
         "aux_ce_drop_epoch": ("losses", "aux_ce_drop_epoch"),
         "color_jitter": ("augmentation", "color_jitter"),
@@ -119,6 +144,7 @@ def _flatten_training_recipe_values(recipe_values: Mapping[str, Any]) -> dict[st
         "random_grayscale": ("augmentation", "random_grayscale"),
         "random_erasing": ("augmentation", "random_erasing"),
         "random_patch": ("augmentation", "random_patch"),
+        "random_crop_scale": ("augmentation", "random_crop_scale"),
         "color_augmentation": ("augmentation", "color_augmentation"),
         "eval_interval": ("evaluation", "eval_interval"),
         "eval_datasets": ("evaluation", "eval_datasets"),
@@ -146,6 +172,18 @@ def load_training_recipe(name: str) -> dict[str, Any]:
     with open(recipe_path, "r", encoding="utf-8") as handle:
         recipe_values = yaml.safe_load(handle) or {}
     return _flatten_training_recipe_values(recipe_values)
+
+
+def load_training_config(path: str | Path) -> dict[str, Any]:
+    """Load a BoxMOT ReID training config YAML."""
+    cfg_path = Path(path)
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Training config not found: {cfg_path}")
+    with open(cfg_path, "r", encoding="utf-8") as handle:
+        cfg_values = yaml.safe_load(handle) or {}
+    if not isinstance(cfg_values, Mapping):
+        raise ValueError(f"Training config must contain a mapping: {cfg_path}")
+    return _flatten_training_recipe_values(cfg_values)
 
 
 def list_training_recipes() -> list[str]:
@@ -212,6 +250,26 @@ def _normalize_int_tuple(values: Any) -> tuple[int, ...]:
     if isinstance(values, int):
         return (int(values),)
     return tuple(int(value) for value in values)
+
+
+def _normalize_int_pair(value: Any, default: tuple[int, int] = (5, 3)) -> tuple[int, int]:
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return (int(value), int(value))
+    if isinstance(value, str):
+        parts = [part for part in value.replace(";", ",").split(",") if part.strip()]
+        if len(parts) == 1:
+            parts = parts * 2
+        if len(parts) != 2:
+            raise ValueError(f"Expected one or two comma-separated integers, got {value!r}")
+        return (int(parts[0]), int(parts[1]))
+    values = tuple(int(part) for part in value)
+    if len(values) == 1:
+        return (values[0], values[0])
+    if len(values) != 2:
+        raise ValueError(f"Expected one or two integers, got {value!r}")
+    return values
 
 
 def ensure_model_extension(model_path: str | Path, default_dir: Path = WEIGHTS) -> Path:
@@ -289,12 +347,22 @@ def build_mode_namespace(
         if project is not None:
             values["project"] = Path(project)
     elif normalized_mode == "train":
-        # Apply training recipe if specified (between defaults and CLI overrides)
+        cfg_values: dict[str, Any] | None = None
+        cfg_path = values.pop("cfg", None)
+        if cfg_path is not None:
+            cfg_values = load_training_config(cfg_path)
+        # Apply training recipe if specified (between defaults/config and CLI overrides)
         recipe_name = values.pop("recipe", None)
+        if cfg_values is not None and "recipe" not in explicit and cfg_values.get("recipe") is not None:
+            recipe_name = cfg_values["recipe"]
         if recipe_name is not None:
             recipe_values = load_training_recipe(recipe_name)
             for key, val in recipe_values.items():
                 if key not in explicit:
+                    values[key] = val
+        if cfg_values is not None:
+            for key, val in cfg_values.items():
+                if key != "recipe" and key not in explicit:
                     values[key] = val
         project = values.get("project")
         if project is not None:
@@ -306,11 +374,19 @@ def build_mode_namespace(
             values["imgsz"] = (imgsz, imgsz // 2)
         values["head_parts"] = _normalize_int_tuple(values.get("head_parts", (1, 2)))
         values["reid_adapter_stages"] = _normalize_int_tuple(values.get("reid_adapter_stages", ()))
+        values["post_fusion_mixer_kernel"] = _normalize_int_pair(
+            values.get("post_fusion_mixer_kernel", (5, 3))
+        )
         # Parse eval_datasets: accept comma-separated string or list
         ed = values.get("eval_datasets", ())
         if isinstance(ed, str):
             ed = [s.strip() for s in ed.split(",") if s.strip()]
         values["eval_datasets"] = list(ed)
+        if "backbone_freeze_epochs" not in explicit:
+            epochs = int(values.get("epochs", 0) or 0)
+            freeze_epochs = int(values.get("backbone_freeze_epochs", 0) or 0)
+            if epochs >= 0 and freeze_epochs > epochs:
+                values["backbone_freeze_epochs"] = epochs
         values.setdefault("train_explicit_keys", tuple(sorted(explicit)))
 
     return SimpleNamespace(**values)
@@ -598,6 +674,7 @@ class TrainModeDefaults:
     eval_interval: int
     p_ids: int
     k_instances: int
+    source_balance: str
     margin: float
     label_smooth: float
     classifier_loss: str
@@ -609,12 +686,20 @@ class TrainModeDefaults:
     center_loss_weight: float
     id_loss_weight: float
     metric_loss_weight: float
+    early_id_loss_weight: float
+    early_id_loss_epochs: int
+    center_loss_ramp_start_epoch: int
+    center_loss_ramp_end_epoch: int
     aux_ce_weight: float
     aux_ce_drop_epoch: int
     branch_loss_agg: str
     metric_feature: str
     inference_feature: str
     feature_fusion: str
+    post_fusion_mixer: str
+    post_fusion_mixer_reduction: int
+    post_fusion_mixer_kernel: tuple[int, int]
+    post_fusion_mixer_gamma_init: float
     feat_dim: int
     neck_dim: int
     drop_path_rate: float
@@ -630,15 +715,30 @@ class TrainModeDefaults:
     head_type: str
     part_pooling: str
     num_part_tokens: int
+    evidence_num_roles: int
     decouple_patterns: bool
     pattern_adapter_dim: int
     stripe_visibility: bool
+    drop_global_aux: bool
+    drop_global_aux_ratio: float
     branch_aware_metric: bool
     branch_metric_part_weight: float
+    evidence_alignment_loss_weight: float
+    evidence_alignment_margin: float
+    evidence_sinkhorn_iters: int
+    evidence_sinkhorn_temperature: float
+    evidence_rerank_topk: int
+    evidence_null_loss_weight: float
+    evidence_diversity_loss_weight: float
     head_warmup_epochs: int
     head_warmup_lr_mult: float
     vit_lr_profile: str
     backbone_freeze_epochs: int
+    gradual_unfreeze: bool
+    gradual_unfreeze_head_epochs: int
+    gradual_unfreeze_stage_epochs: int
+    gradual_unfreeze_backbone_lr_mult: float
+    gradual_unfreeze_backbone_lr_epochs: int
     eta_min: float
     pretrained: bool
     device: str
@@ -654,6 +754,7 @@ class TrainModeDefaults:
     random_grayscale: float
     random_erasing: float
     random_patch: bool
+    random_crop_scale: float
     color_augmentation: bool
     flip_tta: bool | None
 
@@ -679,6 +780,7 @@ class TrainModeDefaults:
             eval_interval=int(values.get("eval_interval", 10)),
             p_ids=int(values.get("p_ids", 16)),
             k_instances=int(values.get("k_instances", 4)),
+            source_balance=str(values.get("source_balance", "")),
             margin=float(values.get("margin", 0.3)),
             label_smooth=float(values.get("label_smooth", 0.1)),
             classifier_loss=str(values.get("classifier_loss", "ce")),
@@ -690,12 +792,20 @@ class TrainModeDefaults:
             center_loss_weight=float(values.get("center_loss_weight", 5e-4)),
             id_loss_weight=float(values.get("id_loss_weight", 1.0)),
             metric_loss_weight=float(values.get("metric_loss_weight", 1.0)),
+            early_id_loss_weight=float(values.get("early_id_loss_weight", 0.0)),
+            early_id_loss_epochs=int(values.get("early_id_loss_epochs", 0)),
+            center_loss_ramp_start_epoch=int(values.get("center_loss_ramp_start_epoch", 0)),
+            center_loss_ramp_end_epoch=int(values.get("center_loss_ramp_end_epoch", 0)),
             aux_ce_weight=float(values.get("aux_ce_weight", 1.0)),
             aux_ce_drop_epoch=int(values.get("aux_ce_drop_epoch", 0)),
             branch_loss_agg=str(values.get("branch_loss_agg", "mean")),
             metric_feature=str(values.get("metric_feature", "auto")),
             inference_feature=str(values.get("inference_feature", "concat_bn")),
             feature_fusion=str(values.get("feature_fusion", "last3")),
+            post_fusion_mixer=str(values.get("post_fusion_mixer", "none")),
+            post_fusion_mixer_reduction=int(values.get("post_fusion_mixer_reduction", 4)),
+            post_fusion_mixer_kernel=_normalize_int_pair(values.get("post_fusion_mixer_kernel", (5, 3))),
+            post_fusion_mixer_gamma_init=float(values.get("post_fusion_mixer_gamma_init", 0.0)),
             feat_dim=int(values.get("feat_dim", 512)),
             neck_dim=int(values.get("neck_dim", 512)),
             drop_path_rate=float(values.get("drop_path_rate", 0.1)),
@@ -711,15 +821,30 @@ class TrainModeDefaults:
             head_type=str(values.get("head_type", "standard")),
             part_pooling=str(values.get("part_pooling", "stripes")),
             num_part_tokens=int(values.get("num_part_tokens", 4)),
+            evidence_num_roles=int(values.get("evidence_num_roles", 8)),
             decouple_patterns=bool(values.get("decouple_patterns", False)),
             pattern_adapter_dim=int(values.get("pattern_adapter_dim", 128)),
             stripe_visibility=bool(values.get("stripe_visibility", False)),
+            drop_global_aux=bool(values.get("drop_global_aux", False)),
+            drop_global_aux_ratio=float(values.get("drop_global_aux_ratio", 0.25)),
             branch_aware_metric=bool(values.get("branch_aware_metric", False)),
             branch_metric_part_weight=float(values.get("branch_metric_part_weight", 0.5)),
+            evidence_alignment_loss_weight=float(values.get("evidence_alignment_loss_weight", 0.0)),
+            evidence_alignment_margin=float(values.get("evidence_alignment_margin", 0.2)),
+            evidence_sinkhorn_iters=int(values.get("evidence_sinkhorn_iters", 20)),
+            evidence_sinkhorn_temperature=float(values.get("evidence_sinkhorn_temperature", 0.1)),
+            evidence_rerank_topk=int(values.get("evidence_rerank_topk", 100)),
+            evidence_null_loss_weight=float(values.get("evidence_null_loss_weight", 0.0)),
+            evidence_diversity_loss_weight=float(values.get("evidence_diversity_loss_weight", 0.0)),
             head_warmup_epochs=int(values.get("head_warmup_epochs", 0)),
             head_warmup_lr_mult=float(values.get("head_warmup_lr_mult", 2.0)),
             vit_lr_profile=str(values.get("vit_lr_profile", "layer_decay")),
             backbone_freeze_epochs=int(values.get("backbone_freeze_epochs", 0)),
+            gradual_unfreeze=bool(values.get("gradual_unfreeze", False)),
+            gradual_unfreeze_head_epochs=int(values.get("gradual_unfreeze_head_epochs", 5)),
+            gradual_unfreeze_stage_epochs=int(values.get("gradual_unfreeze_stage_epochs", 10)),
+            gradual_unfreeze_backbone_lr_mult=float(values.get("gradual_unfreeze_backbone_lr_mult", 0.1)),
+            gradual_unfreeze_backbone_lr_epochs=int(values.get("gradual_unfreeze_backbone_lr_epochs", 5)),
             eta_min=float(values.get("eta_min", 1e-7)),
             pretrained=bool(values.get("pretrained", True)),
             device=str(values.get("device", "cpu")),
@@ -735,6 +860,7 @@ class TrainModeDefaults:
             random_grayscale=float(values.get("random_grayscale", 0.0)),
             random_erasing=float(values.get("random_erasing", 0.5)),
             random_patch=bool(values.get("random_patch", True)),
+            random_crop_scale=float(values.get("random_crop_scale", 1.05)),
             color_augmentation=bool(values.get("color_augmentation", True)),
             flip_tta=values.get("flip_tta"),
         )
@@ -783,5 +909,6 @@ __all__ = (
     "get_mode_default",
     "get_mode_defaults",
     "list_training_recipes",
+    "load_training_config",
     "load_training_recipe",
 )

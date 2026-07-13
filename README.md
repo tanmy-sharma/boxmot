@@ -63,7 +63,7 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <th rowspan="2" align="center"><sub>Status</sub></th>
       <th colspan="3" align="center"><sub>MOT17 ablation</sub></th>
       <th colspan="3" align="center"><sub>SportsMOT val</sub></th>
-      <th colspan="3" align="center"><sub>MMOT test</sub></th>
+      <th colspan="3" align="center"><sub>MMOT OBB test</sub></th>
       <th rowspan="2" align="center"><sub>OBB</sub></th>
     </tr>
     <tr>
@@ -88,9 +88,9 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <td align="right"><sub><b>83.17</b></sub></td>
       <td align="right"><sub>97.48</sub></td>
       <td align="right"><sub><b>89.36</b></sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
+      <td align="right"><sub>28.14</sub></td>
+      <td align="right"><sub>28.21</sub></td>
+      <td align="right"><sub>29.66</sub></td>
       <td align="center"><sub>✅</sub></td>
     </tr>
     <tr>
@@ -102,9 +102,9 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <td align="right"><sub>76.93</sub></td>
       <td align="right"><sub><b>98.11</b></sub></td>
       <td align="right"><sub>78.30</sub></td>
-      <td align="right"><sub><b>51.79</b></sub></td>
-      <td align="right"><sub><b>46.05</b></sub></td>
-      <td align="right"><sub><b>60.85</b></sub></td>
+      <td align="right"><sub>52.27</sub></td>
+      <td align="right"><sub><b>45.45</b></sub></td>
+      <td align="right"><sub>61.36</sub></td>
       <td align="center"><sub>✅</sub></td>
     </tr>
     <tr>
@@ -116,10 +116,10 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <td align="right"><sub>76.32</sub></td>
       <td align="right"><sub>97.08</sub></td>
       <td align="right"><sub>77.82</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="center"><sub>❌</sub></td>
+      <td align="right"><sub>42.88</sub></td>
+      <td align="right"><sub>32.80</sub></td>
+      <td align="right"><sub>48.44</sub></td>
+      <td align="center"><sub>✅</sub></td>
     </tr>
     <tr>
       <td align="left"><sub><a href="https://arxiv.org/abs/2202.13514">strongsort</a></sub></td>
@@ -130,10 +130,10 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <td align="right"><sub>79.80</sub></td>
       <td align="right"><sub>97.31</sub></td>
       <td align="right"><sub>80.27</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="center"><sub>❌</sub></td>
+      <td align="right"><sub>49.75</sub></td>
+      <td align="right"><sub>43.64</sub></td>
+      <td align="right"><sub>57.39</sub></td>
+      <td align="center"><sub>✅</sub></td>
     </tr>
     <tr>
       <td align="left"><sub><a href="https://arxiv.org/abs/2302.11813">deepocsort</a></sub></td>
@@ -144,10 +144,10 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <td align="right"><sub>79.51</sub></td>
       <td align="right"><sub>97.94</sub></td>
       <td align="right"><sub>79.59</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="center"><sub>❌</sub></td>
+      <td align="right"><sub>50.43</sub></td>
+      <td align="right"><sub>43.93</sub></td>
+      <td align="right"><sub>58.39</sub></td>
+      <td align="center"><sub>✅</sub></td>
     </tr>
     <tr>
       <td align="left"><sub><a href="https://arxiv.org/abs/2110.06864">bytetrack</a></sub></td>
@@ -172,10 +172,10 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
       <td align="right"><sub>81.14</sub></td>
       <td align="right"><sub>98.07</sub></td>
       <td align="right"><sub>81.88</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="right"><sub>–</sub></td>
-      <td align="center"><sub>❌</sub></td>
+      <td align="right"><sub><b>53.86</b></sub></td>
+      <td align="right"><sub>44.63</sub></td>
+      <td align="right"><sub><b>63.22</b></sub></td>
+      <td align="center"><sub>✅</sub></td>
     </tr>
     <tr>
       <td align="left"><sub><a href="https://arxiv.org/abs/2203.14360">ocsort</a></sub></td>
@@ -208,6 +208,8 @@ For mode-specific extras such as `yolo`, `evolve`, `research`, `onnx`, `openvino
   </tbody>
 </table>
 <!-- END TRACKER TABLE -->
+
+<sub>MMOT OBB results report the TrackEval <code>Class Avg (Cls)</code> across all eight categories on the 5,466-frame test split, using <code>yolo11l_3ch</code> detections and <code>lmbn_n_duke</code> ReID features. All trackers use their Python backend.</sub>
 
 <sub>Py (C++); <code>—</code> unavailable. See <a href="docs/guides/benchmarks.md">Benchmark Workflows</a>.</sub>
 

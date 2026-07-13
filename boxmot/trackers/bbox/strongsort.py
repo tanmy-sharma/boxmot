@@ -10,15 +10,18 @@ from boxmot.trackers.base import BaseTracker
 from boxmot.trackers.common.appearance import resolve_batch_embeddings
 from boxmot.trackers.common.association.strongsort import NearestNeighborDistanceMetric
 from boxmot.trackers.common.geometry import xyxy2tlwh
+from boxmot.trackers.common.geometry.obb import xywha_to_xyxy
 from boxmot.trackers.common.motion.cmc import create_cmc
 from boxmot.trackers.common.track_models.strongsort import Detection, Tracker
 
 
 class StrongSort(BaseTracker):
+    supports_obb = True
+
     """Initialize the StrongSort tracker.
 
     Args:
-        reid_model: Pre-built ReID backend model (e.g. ``ReID(...).model``).
+        reid_model (Any | None): Pre-built ReID backend model (e.g. ``ReID(...).model``).
         min_conf (float): Minimum confidence threshold for detections.
         max_cos_dist (float): Maximum cosine distance accepted by the
             nearest-neighbor metric.
@@ -29,7 +32,7 @@ class StrongSort(BaseTracker):
         mc_lambda (float): Motion-consistency weight used by StrongSORT.
         ema_alpha (float): Exponential moving average coefficient for
             appearance features.
-        **kwargs: Base tracker settings forwarded to :class:`BaseTracker`.
+        **kwargs (Any): Base tracker settings forwarded to :class:`BaseTracker`.
 
     Attributes:
         model: ReID model used for appearance extraction.
@@ -63,6 +66,7 @@ class StrongSort(BaseTracker):
             mc_lambda=mc_lambda,
             ema_alpha=ema_alpha,
             id_allocator=self.id_allocator,
+            is_obb=self.is_obb,
         )
 
         self.cmc = create_cmc("ecc")
@@ -75,6 +79,7 @@ class StrongSort(BaseTracker):
         masks: np.ndarray = None,
     ) -> np.ndarray:
         self.check_inputs(dets, img, embs)
+        self.tracker.is_obb = self.is_obb
         batch = self.make_detection_batch(dets, embs=embs, masks=masks)
         batch = batch.select(batch.confs >= self.min_conf)
         indexed_dets = batch.as_indexed_detections(dtype=dets.dtype)
@@ -86,13 +91,14 @@ class StrongSort(BaseTracker):
             batch,
             img,
             model=self.model,
+            boxes=xywha_to_xyxy(batch.boxes) if self.is_obb else batch.boxes,
         )
 
-        tlwh = xyxy2tlwh(batch.boxes)
+        track_boxes = batch.boxes if self.is_obb else xyxy2tlwh(batch.boxes)
         detections = [
-            Detection(box, conf, cls, det_ind, feat)
+            Detection(box, conf, cls, det_ind, feat, is_obb=self.is_obb)
             for box, conf, cls, det_ind, feat in zip(
-                tlwh,
+                track_boxes,
                 batch.confs,
                 batch.clss,
                 batch.det_inds,
@@ -108,14 +114,14 @@ class StrongSort(BaseTracker):
             if not track.is_confirmed() or track.time_since_update >= 1:
                 continue
 
-            x1, y1, x2, y2 = track.to_tlbr()
+            box = track.xywha if self.is_obb else track.to_tlbr()
 
             id = track.id
             conf = track.conf
             cls = track.cls
             det_ind = track.det_ind
 
-            outputs.append(self.format_output_row([x1, y1, x2, y2], id, conf, cls, det_ind))
+            outputs.append(self.format_output_row(box, id, conf, cls, det_ind))
         return self.format_output_rows(outputs, dtype=np.float32)
 
     def reset(self):
